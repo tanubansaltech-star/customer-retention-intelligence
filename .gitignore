@@ -1,0 +1,11 @@
+.venv/
+.venv313/
+
+__pycache__/
+*.pyc
+
+.streamlit/
+
+*.db
+
+dashboard/app_backup.py
