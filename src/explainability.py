@@ -91,3 +91,87 @@ explanation.to_csv(
 
 print("\nSHAP results saved to:")
 print("data/processed/shap_results.csv")
+# ============================================================
+# CUSTOMER-WISE SHAP EXPLANATIONS
+# ============================================================
+
+customer_shap_records = []
+
+for idx in range(len(df)):
+
+    values = shap_values.values[idx]
+
+    customer_explanation = pd.DataFrame({
+        "Feature": feature_names,
+        "SHAP Value": values
+    })
+
+    customer_explanation["Absolute SHAP"] = (
+        customer_explanation["SHAP Value"].abs()
+    )
+
+    customer_explanation = (
+        customer_explanation
+        .sort_values(
+            "Absolute SHAP",
+            ascending=False
+        )
+        .head(5)
+    )
+
+    customer_explanation["customerID"] = (
+        df.iloc[idx]["customerID"]
+    )
+
+    customer_explanation["Impact"] = (
+        customer_explanation["SHAP Value"]
+        .apply(
+            lambda x:
+            "Increases Risk"
+            if x > 0
+            else "Decreases Risk"
+        )
+    )
+
+    customer_shap_records.append(
+        customer_explanation[
+            [
+                "customerID",
+                "Feature",
+                "SHAP Value",
+                "Impact"
+            ]
+        ]
+    )
+
+
+# Combine all customers
+
+customer_shap_df = pd.concat(
+    customer_shap_records,
+    ignore_index=True
+)
+
+
+# Save customer-wise explanations
+
+customer_shap_df.to_csv(
+    "data/processed/customer_shap_results.csv",
+    index=False
+)
+
+
+print("\nCustomer-wise SHAP analysis completed!")
+
+print(
+    "Customers analyzed:",
+    customer_shap_df["customerID"].nunique()
+)
+
+print(
+    "Saved to:"
+)
+
+print(
+    "data/processed/customer_shap_results.csv"
+)

@@ -551,53 +551,60 @@ st.divider()
 
 st.header("💰 Revenue at Risk")
 
-high_risk_data = df[
-    df["RiskLevel"] == "HIGH"
-]
-
-revenue_at_risk = (
-    high_risk_data["MonthlyCharges"].sum()
+# Probability-weighted revenue risk
+df["RevenueAtRisk"] = (
+    df["MonthlyCharges"]
+    * df["ChurnProbability"]
 )
 
+total_revenue_at_risk = (
+    df["RevenueAtRisk"].sum()
+)
+
+high_risk_revenue = (
+    df.loc[
+        df["RiskLevel"] == "HIGH",
+        "RevenueAtRisk"
+    ].sum()
+)
+
+average_customer_risk = (
+    df["RevenueAtRisk"].mean()
+)
 
 risk_col1, risk_col2, risk_col3 = st.columns(3)
 
 
 with risk_col1:
+
     st.metric(
-        "Monthly Revenue at Risk",
-        f"₹{revenue_at_risk:,.2f}"
+       "💰 Revenue at Risk",
+        f"₹{total_revenue_at_risk:,.2f}"
     )
 
 
 with risk_col2:
+
     st.metric(
-        "High-Risk Customers",
-        f"{len(high_risk_data):,}"
+        "🔴 High-Risk Revenue",
+        f"₹{high_risk_revenue:,.2f}"
     )
 
 
 with risk_col3:
 
-    high_risk_percentage = (
-        len(high_risk_data)
-        /
-        total_customers
-        * 100
-    )
-
     st.metric(
-        "High-Risk Percentage",
-        f"{high_risk_percentage:.1f}%"
-    )
+    "👤 Avg. Risk / Customer",
+    f"₹{average_customer_risk:,.2f}"
+)
 
 
 st.caption(
-    "Estimated monthly revenue associated with customers classified as HIGH risk."
+    "Revenue at Risk is estimated using each customer's "
+    "monthly charges weighted by their predicted churn probability."
 )
 
 st.divider()
-
 
 # ============================================================
 # CUSTOMER RISK DISTRIBUTION
@@ -1558,11 +1565,7 @@ if search_customer:
         )
     ]
     
-    internet_filter = st.selectbox(
-    "🌐 Internet Service",
-    ["All", "DSL", "Fiber optic", "No"]
-)
-
+    
 
 
 high_risk["RevenueAtRisk"] = (
@@ -1606,7 +1609,16 @@ with col4:
       "🎯 Priority",
         ["All", "HIGH", "MEDIUM", "LOW"]
 )
+if contract_filter != "All":
+    high_risk = high_risk[
+        high_risk["Contract"] == contract_filter
+    ]
 
+
+if internet_filter != "All":
+    high_risk = high_risk[
+        high_risk["InternetService"] == internet_filter
+    ]
 if priority_filter != "All":
     high_risk = high_risk[
         high_risk["Priority"] == priority_filter
@@ -1811,10 +1823,108 @@ else:
 
 st.divider()
 
+# ============================================================
+# CUSTOMER-SPECIFIC SHAP EXPLANATION
+# ============================================================
+
+st.header("🔍 Why Is This Customer at Risk?")
+st.caption(
+    "The factors below show which customer characteristics "
+    "are increasing or reducing predicted churn risk."
+)
+
+
+customer_shap = pd.read_csv(
+    "data/processed/customer_shap_results.csv"
+)
+
+
+selected_customer_shap = customer_shap[
+    customer_shap["customerID"].astype(str)
+    == selected_customer
+].copy()
+
+
+# Clean feature names
+feature_names_map = {
+    "MonthlyCharges": "Monthly Charges",
+    "tenure": "Customer Tenure",
+    "TotalCharges": "Total Charges",
+    "TotalServices": "Number of Services",
+    "LongTermContract": "Long-Term Contract",
+    "HighValueCustomer": "High-Value Customer",
+    "HasTechSupport": "Technical Support",
+    "HasOnlineSecurity": "Online Security",
+    "AutoPayment": "Automatic Payment",
+}
+
+
+selected_customer_shap["Feature"] = (
+    selected_customer_shap["Feature"]
+    .str.replace("numeric__", "", regex=False)
+    .str.replace("categorical__", "", regex=False)
+    .str.replace("_", " ", regex=False)
+)
+
+
+# Display top factors
+
+for _, factor in selected_customer_shap.iterrows():
+
+        feature = factor["Feature"]
+        feature_key = feature
+
+        feature = feature_names_map.get( 
+        feature_key,
+        feature
+    )
+
+        impact = factor["Impact"]
+        shap_value = factor["SHAP Value"]
+
+        if impact == "Increases Risk":
+          st.markdown(
+            f"""
+            <div class="recommendation-card">
+                <div class="recommendation-priority">
+                    🔴 Increases Churn Risk
+                </div>
+                <div class="recommendation-text">
+                    <b>{feature}</b>
+                    &nbsp; | &nbsp;
+                    SHAP Impact: {shap_value:.3f}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        else:
+
+         st.markdown(
+            f"""
+            <div class="recommendation-card">
+                <div class="recommendation-priority">
+                    🟢 Reduces Churn Risk
+                </div>
+                <div class="recommendation-text">
+                    <b>{feature}</b>
+                    &nbsp; | &nbsp;
+                    SHAP Impact: {shap_value:.3f}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+st.divider()
+
 
 # ============================================================
 # RETENTION RECOMMENDATIONS
 # ============================================================
+
 
 st.header("💡 Retention Recommendations")
 
